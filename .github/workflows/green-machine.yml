@@ -13,10 +13,22 @@ name: GitHub Green Machine
 
 on:
   schedule:
-    # Runs once daily at 04:00 UTC (09:30 AM IST)
-    - cron: '0 4 * * *'
+    # Runs 3 times daily:
+    # • 03:30 UTC (09:00 AM IST) - Morning maintenance
+    # • 10:30 UTC (04:00 PM IST) - Afternoon maintenance
+    # • 16:30 UTC (10:00 PM IST) - Evening maintenance
+    - cron: '30 3,10,16 * * *'
   workflow_dispatch:
-    # Allows manual execution from the GitHub Actions UI for testing
+    inputs:
+      commit_count:
+        description: 'Number of maintenance commits to create (1 to 3)'
+        required: false
+        default: '1'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
 
 permissions:
   contents: write
@@ -51,35 +63,43 @@ jobs:
           git config --local user.name "$COMMIT_NAME"
           git config --local user.email "$COMMIT_EMAIL"
 
-      - name: ⏱️ Record Maintenance Heartbeat
+      - name: ⏱️ Record Maintenance & Commit
         run: |
           mkdir -p .github/activity
-          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           
-          echo "Automated repository maintenance heartbeat: $TIMESTAMP" >> .github/activity/heartbeat.log
-          
-          # Maintain a lightweight history (keep last 500 lines if file grows too large)
-          if [ -f .github/activity/heartbeat.log ] && [ $(wc -l < .github/activity/heartbeat.log) -gt 1000 ]; then
-            tail -n 500 .github/activity/heartbeat.log > .github/activity/heartbeat.tmp
-            mv .github/activity/heartbeat.tmp .github/activity/heartbeat.log
-          fi
+          # Determine number of commits to produce (default 1 per scheduled slot)
+          COUNT="${{ inputs.commit_count || '1' }}"
+          echo "Processing $COUNT maintenance update(s)..."
 
-          echo "Recorded heartbeat at: $TIMESTAMP"
+          for i in $(seq 1 $COUNT); do
+            TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            echo "Automated repository maintenance heartbeat: $TIMESTAMP [slot $i/$COUNT]" >> .github/activity/heartbeat.log
+            
+            # Lightweight log rotation: retain last 500 lines if file exceeds 1000 lines
+            if [ $(wc -l < .github/activity/heartbeat.log) -gt 1000 ]; then
+              tail -n 500 .github/activity/heartbeat.log > .github/activity/heartbeat.tmp
+              mv .github/activity/heartbeat.tmp .github/activity/heartbeat.log
+            fi
 
-      - name: 🚀 Commit and Push Maintenance Update
+            git add .github/activity/heartbeat.log
+
+            if git diff --staged --quiet; then
+              echo "No staged changes detected. Skipping."
+            else
+              git commit -m "chore: automated repository maintenance"
+              echo "Created commit $i at $TIMESTAMP"
+            fi
+
+            # Short delay between consecutive commits if generating multiple
+            if [ "$i" -lt "$COUNT" ]; then
+              sleep 2
+            fi
+          done
+
+      - name: 🚀 Pull Rebase and Push
         run: |
-          git add .github/activity/heartbeat.log
-
-          # Check if there are staged changes; avoid empty commits
-          if git diff --staged --quiet; then
-            echo "No changes detected. Skipping commit."
-            exit 0
-          fi
-
-          git commit -m "chore: automated repository maintenance"
-
           # Pull latest changes safely with rebase to prevent race conditions
           git pull --rebase origin main || true
 
-          # Push to the default branch using the GITHUB_TOKEN
+          # Push to the default branch using the hourly GITHUB_TOKEN
           git push origin main

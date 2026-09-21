@@ -3,7 +3,8 @@
 <div align="center">
 
 [![Workflow Status](https://img.shields.io/badge/Status-Active%20Maintenance-00F2FE?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/Priya-Ranjan-0201/github-green-machine/actions)
-[![Trigger](https://img.shields.io/badge/Schedule-Daily%2004%3A00%20UTC-38EF7D?style=for-the-badge&logo=clock&logoColor=white)](.github/workflows/green-machine.yml)
+[![Trigger](https://img.shields.io/badge/Schedule-3x%20Daily%20(Morning%2FAfternoon%2FEvening)-38EF7D?style=for-the-badge&logo=clock&logoColor=white)](.github/workflows/green-machine.yml)
+[![Token](https://img.shields.io/badge/Auth-Hourly%20GITHUB__TOKEN-9cf?style=for-the-badge&logo=github&logoColor=white)](.github/workflows/green-machine.yml)
 [![Attribution](https://img.shields.io/badge/Attribution-Verified%20Author-blue?style=for-the-badge&logo=git&logoColor=white)](https://github.com/Priya-Ranjan-0201)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
@@ -22,7 +23,7 @@
 5. [Step-by-Step Installation & Setup](#-step-by-step-installation--setup)
 6. [Identity & Attribution Configuration](#-identity--attribution-configuration)
 7. [How to Manually Trigger the Workflow](#-how-to-manually-trigger-the-workflow)
-8. [Customizing the Cron Schedule](#-customizing-the-cron-schedule)
+8. [Daily Schedule & Commit Frequency](#-daily-schedule--commit-frequency)
 9. [How GitHub Attribution Works](#-how-github-attribution-works)
 10. [Troubleshooting Guide](#-troubleshooting-guide)
 11. [How to Pause or Disable Automation](#-how-to-pause-or-disable-automation)
@@ -35,16 +36,16 @@
 
 ### The Purpose
 Software repositories require continuous health signals and active maintenance. Rather than requiring manual commits every day, GitHub Green Machine:
-- Checks out the repository's default branch on a scheduled cron trigger.
+- Checks out the repository's default branch on a scheduled cron trigger (3 times daily).
 - Appends a legitimate UTC maintenance heartbeat timestamp to `.github/activity/heartbeat.log`.
 - Creates a clean, normal, forward-moving Git commit.
-- Pushes the update to GitHub using the built-in `GITHUB_TOKEN`.
+- Pushes the update to GitHub using the built-in, hourly ephemeral `GITHUB_TOKEN`.
 
 ### 🛡️ What It Is NOT:
 - ❌ **No fake historical commits:** It never backdates commits to past years or months.
 - ❌ **No Git history rewriting:** No `git rebase`, no `git commit --amend`, no timestamp tampering.
 - ❌ **No force pushes:** No destructive `git push --force`.
-- ❌ **No script farms:** Runs once daily at a non-peak hour, avoiding commit spam.
+- ❌ **No script farms:** Runs 2 to 3 times daily at non-peak hours, avoiding commit spam.
 
 ---
 
@@ -52,22 +53,22 @@ Software repositories require continuous health signals and active maintenance. 
 
 ```mermaid
 graph TD
-    A[POSIX Cron Trigger: 04:00 UTC / Manual Dispatch] --> B[GitHub Actions Runner: ubuntu-latest]
+    A[POSIX Cron Trigger: 3x Daily / Manual Dispatch] --> B[GitHub Actions Runner: ubuntu-latest]
     B --> C[Checkout Default Branch via actions/checkout@v4]
     C --> D[Configure Git Identity: Name & Verified Email]
     D --> E[Append Maintenance Timestamp to heartbeat.log]
     E --> F{Inspect Git Diff}
     F -->|No Changes| G[Exit Gracefully]
     F -->|Staged Changes Detected| H[Create Standard Commit: chore: automated maintenance]
-    H --> I[Safe Pull Rebase & Push to main]
+    H --> I[Safe Pull Rebase & Push to main via GITHUB_TOKEN]
     I --> J[Contribution Graph Registers Legitimate Activity Feed]
 ```
 
-1. **Trigger:** The workflow is triggered automatically once per day via a POSIX cron schedule (`0 4 * * *` = 04:00 UTC / 09:30 AM IST) or manually via `workflow_dispatch`.
+1. **Trigger:** The workflow is triggered automatically 3 times per day via a POSIX cron schedule (`30 3,10,16 * * *`) or manually via `workflow_dispatch` (with 1, 2, or 3 commits selectable).
 2. **Environment:** Runs on an ephemeral `ubuntu-latest` virtual machine.
 3. **Execution:** Appends the current ISO UTC timestamp to `.github/activity/heartbeat.log`.
 4. **Attribution:** Uses your configured GitHub identity and verified account email so the commit is officially linked to your user profile.
-5. **Safe Push:** Uses atomic commit semantics and `git pull --rebase` before pushing to guarantee zero merge conflicts or dropped commits.
+5. **Safe Push:** Uses atomic commit semantics and `git pull --rebase` before pushing with the ephemeral `GITHUB_TOKEN` to guarantee zero merge conflicts or dropped commits.
 
 ---
 
@@ -78,7 +79,7 @@ This project operates strictly within GitHub's Terms of Service and guidelines:
 | Policy | Implementation Detail |
 | :--- | :--- |
 | **No Artificial Backdating** | Every commit timestamp is generated in real-time (`date -u`) on the runner. |
-| **No External Secrets** | Uses the repository's built-in `GITHUB_TOKEN` with scoped `contents: write`. No personal access tokens (PAT) or passwords required. |
+| **Hourly Ephemeral Token Only** | Uses the repository's built-in `GITHUB_TOKEN` with scoped `contents: write`. No personal access tokens (PAT), passwords, or static secrets stored. |
 | **Atomic & Idempotent** | If no file changes are produced, the workflow exits with code 0 without creating an empty commit. |
 | **Lightweight Log Rotation** | Keeps `heartbeat.log` trimmed to prevent repository bloat over time. |
 
@@ -91,7 +92,7 @@ github-green-machine/
 │
 ├── .github/
 │   ├── workflows/
-│   │   └── green-machine.yml      <-- Automated daily maintenance workflow
+│   │   └── green-machine.yml      <-- Automated 3x daily maintenance workflow
 │   └── activity/
 │       └── heartbeat.log          <-- Real-time maintenance heartbeat log
 │
@@ -143,31 +144,33 @@ You can test the workflow instantly without waiting for the scheduled cron:
 2. Click the **Actions** tab.
 3. In the left sidebar, click **"GitHub Green Machine"**.
 4. Click the **"Run workflow"** dropdown button on the right.
-5. Select branch `main` and click **"Run workflow"**.
-6. The job will start running in ~5 seconds. Once finished (green checkmark), a new maintenance commit will appear in your repository!
+5. Choose how many commits to create (1, 2, or 3) and click **"Run workflow"**.
+6. The job will start running in ~5 seconds. Once finished (green checkmark), your new maintenance commits will appear in your repository!
 
 ---
 
-## ⏰ Customizing the Cron Schedule
+## ⏰ Daily Schedule & Commit Frequency
 
 The workflow schedule is defined in [`.github/workflows/green-machine.yml`](.github/workflows/green-machine.yml):
 
 ```yaml
 on:
   schedule:
-    - cron: '0 4 * * *'
+    # 3 scheduled runs every day:
+    - cron: '30 3,10,16 * * *'
 ```
 
-### Schedule Cheat-Sheet (POSIX UTC)
+### Daily Schedule Breakdown (UTC & IST)
 
-| Expression | Execution Time | Use Case |
-| :--- | :--- | :--- |
-| `0 4 * * *` | Daily at 04:00 UTC (09:30 AM IST) | **Default** (reliable, non-peak) |
-| `0 12 * * *` | Daily at 12:00 UTC (05:30 PM IST) | Afternoon check |
-| `0 0 * * *` | Daily at 00:00 UTC (05:30 AM IST) | Midnight rollover |
-| `30 6 * * *` | Daily at 06:30 UTC (12:00 PM IST) | Noon check |
+| Slot | UTC Time | IST Time (Local) | Daily Contribution Added |
+| :--- | :--- | :--- | :--- |
+| **Morning Run** | 03:30 UTC | **09:00 AM IST** | +1 Contribution |
+| **Afternoon Run** | 10:30 UTC | **04:00 PM IST** | +1 Contribution |
+| **Night Run** | 16:30 UTC | **10:00 PM IST** | +1 Contribution |
 
-> 💡 **Note on GitHub Actions Scheduling:** GitHub Actions scheduled workflows are queued in shared infrastructure. Runs may start within 5–15 minutes of the specified minute during peak global hours.
+**Total:** **3 automated contributions every single day**, distributed realistically across the morning, afternoon, and night.
+
+> 💡 **Note on GitHub Actions Scheduling:** GitHub Actions scheduled workflows run on shared runners. Runs may start within 5–15 minutes of the target minute depending on global queue demand.
 
 ---
 
