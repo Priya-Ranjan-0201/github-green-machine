@@ -13,22 +13,16 @@ name: GitHub Green Machine
 
 on:
   schedule:
-    # Runs 3 times daily:
-    # • 03:30 UTC (09:00 AM IST) - Morning maintenance
-    # • 10:30 UTC (04:00 PM IST) - Afternoon maintenance
-    # • 16:30 UTC (10:00 PM IST) - Evening maintenance
-    - cron: '30 3,10,16 * * *'
+    # Evaluates dynamic maintenance checks across 8 unpredictable windows daily:
+    # 00:17, 03:17, 06:17, 09:17, 12:17, 15:17, 18:17, 21:17 UTC
+    - cron: '17 */3 * * *'
   workflow_dispatch:
     inputs:
-      commit_count:
-        description: 'Number of maintenance commits to create (1 to 3)'
+      force_commit:
+        description: 'Force a maintenance commit immediately'
         required: false
-        default: '1'
-        type: choice
-        options:
-          - '1'
-          - '2'
-          - '3'
+        default: 'true'
+        type: boolean
 
 permissions:
   contents: write
@@ -39,7 +33,7 @@ concurrency:
 
 jobs:
   maintenance:
-    name: Repository Maintenance & Heartbeat
+    name: Autonomous Dynamic Repository Maintenance
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -63,43 +57,100 @@ jobs:
           git config --local user.name "$COMMIT_NAME"
           git config --local user.email "$COMMIT_EMAIL"
 
-      - name: ⏱️ Record Maintenance & Commit
+      - name: 🎲 Dynamic Organic Activity Decision Engine
+        id: eval
+        run: |
+          EVENT_NAME="${{ github.event_name }}"
+          
+          # If triggered manually via workflow_dispatch, always execute
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "Manual trigger received. Executing maintenance commit."
+            echo "should_run=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Inspect today's existing maintenance commits (UTC)
+          TODAY=$(date -u +"%Y-%m-%d")
+          COMMITS_TODAY=$(git log --since="$TODAY 00:00:00" --grep="chore:" --oneline | wc -l)
+          CURRENT_HOUR=$(date -u +"%H")
+          CURRENT_HOUR=$((10#$CURRENT_HOUR))
+
+          echo "Status: Date=$TODAY | Hour=${CURRENT_HOUR}:00 UTC | Commits made today=$COMMITS_TODAY"
+
+          ROLL=$(( RANDOM % 100 + 1 ))
+          SHOULD_RUN="false"
+
+          if [ "$COMMITS_TODAY" -eq 0 ]; then
+            # High probability to start activity, guaranteed by late afternoon
+            if [ "$ROLL" -le 65 ] || [ "$CURRENT_HOUR" -ge 18 ]; then
+              SHOULD_RUN="true"
+            fi
+          elif [ "$COMMITS_TODAY" -eq 1 ]; then
+            # Moderate probability for second commit
+            if [ "$ROLL" -le 50 ]; then
+              SHOULD_RUN="true"
+            fi
+          elif [ "$COMMITS_TODAY" -eq 2 ]; then
+            # Organic probability for third commit
+            if [ "$ROLL" -le 35 ]; then
+              SHOULD_RUN="true"
+            fi
+          elif [ "$COMMITS_TODAY" -eq 3 ]; then
+            # Rare occasional 4th commit (15% chance)
+            if [ "$ROLL" -le 15 ]; then
+              SHOULD_RUN="true"
+            fi
+          fi
+
+          echo "Decision roll: $ROLL | Execution approved: $SHOULD_RUN"
+          echo "should_run=$SHOULD_RUN" >> $GITHUB_OUTPUT
+
+      - name: ⏱️ Record Maintenance Heartbeat
+        if: steps.eval.outputs.should_run == 'true'
         run: |
           mkdir -p .github/activity
-          
-          # Determine number of commits to produce (default 1 per scheduled slot)
-          COUNT="${{ inputs.commit_count || '1' }}"
-          echo "Processing $COUNT maintenance update(s)..."
 
-          for i in $(seq 1 $COUNT); do
-            TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
-            echo "Automated repository maintenance heartbeat: $TIMESTAMP [slot $i/$COUNT]" >> .github/activity/heartbeat.log
-            
-            # Lightweight log rotation: retain last 500 lines if file exceeds 1000 lines
-            if [ $(wc -l < .github/activity/heartbeat.log) -gt 1000 ]; then
-              tail -n 500 .github/activity/heartbeat.log > .github/activity/heartbeat.tmp
-              mv .github/activity/heartbeat.tmp .github/activity/heartbeat.log
-            fi
+          # Organic delay (3 to 25 seconds) so commit seconds vary naturally
+          JITTER=$(( RANDOM % 22 + 3 ))
+          echo "Applying natural variance delay: ${JITTER}s..."
+          sleep $JITTER
 
-            git add .github/activity/heartbeat.log
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          SESSION_TAG=$(openssl rand -hex 3 2>/dev/null || date +%s | tail -c 6)
 
-            if git diff --staged --quiet; then
-              echo "No staged changes detected. Skipping."
-            else
-              git commit -m "chore: automated repository maintenance"
-              echo "Created commit $i at $TIMESTAMP"
-            fi
+          # Dynamic pool of clean maintenance commit messages
+          MESSAGES=(
+            "chore: automated repository maintenance"
+            "chore: routine maintenance heartbeat sync"
+            "chore: verify repository health ping"
+            "chore: update system telemetry status"
+            "chore: automated repository health check"
+          )
+          MSG_INDEX=$(( RANDOM % 5 ))
+          COMMIT_MSG="${MESSAGES[$MSG_INDEX]}"
 
-            # Short delay between consecutive commits if generating multiple
-            if [ "$i" -lt "$COUNT" ]; then
-              sleep 2
-            fi
-          done
+          echo "Automated repository maintenance heartbeat: $TIMESTAMP [session: $SESSION_TAG]" >> .github/activity/heartbeat.log
+
+          # Lightweight log rotation: keep last 500 lines if file exceeds 1000 lines
+          if [ $(wc -l < .github/activity/heartbeat.log) -gt 1000 ]; then
+            tail -n 500 .github/activity/heartbeat.log > .github/activity/heartbeat.tmp
+            mv .github/activity/heartbeat.tmp .github/activity/heartbeat.log
+          fi
+
+          git add .github/activity/heartbeat.log
+
+          if git diff --staged --quiet; then
+            echo "No staged changes detected. Skipping."
+          else
+            git commit -m "$COMMIT_MSG"
+            echo "Created commit: '$COMMIT_MSG' at $TIMESTAMP"
+          fi
 
       - name: 🚀 Pull Rebase and Push
+        if: steps.eval.outputs.should_run == 'true'
         run: |
           # Pull latest changes safely with rebase to prevent race conditions
           git pull --rebase origin main || true
 
-          # Push to the default branch using the hourly GITHUB_TOKEN
+          # Push to the default branch using the hourly ephemeral GITHUB_TOKEN
           git push origin main

@@ -144,33 +144,40 @@ You can test the workflow instantly without waiting for the scheduled cron:
 2. Click the **Actions** tab.
 3. In the left sidebar, click **"GitHub Green Machine"**.
 4. Click the **"Run workflow"** dropdown button on the right.
-5. Choose how many commits to create (1, 2, or 3) and click **"Run workflow"**.
-6. The job will start running in ~5 seconds. Once finished (green checkmark), your new maintenance commits will appear in your repository!
+5. Click **"Run workflow"** to trigger an immediate maintenance commit.
+6. The job will start running in ~5 seconds. Once finished (green checkmark), your new maintenance commit will appear in your repository!
 
 ---
 
-## ⏰ Daily Schedule & Commit Frequency
+## 🎲 Dynamic & Organic Activity Engine (No Fixed Schedule)
 
-The workflow schedule is defined in [`.github/workflows/green-machine.yml`](.github/workflows/green-machine.yml):
+Instead of robotic, predictable daily clock intervals, **GitHub Green Machine** utilizes an intelligent **Dynamic Decision Engine**:
 
 ```yaml
 on:
   schedule:
-    # 3 scheduled runs every day:
-    - cron: '30 3,10,16 * * *'
+    # 8 evaluation windows per day:
+    - cron: '17 */3 * * *'
 ```
 
-### Daily Schedule Breakdown (UTC & IST)
+### How It Achieves Human-Like Natural Activity:
 
-| Slot | UTC Time | IST Time (Local) | Daily Contribution Added |
-| :--- | :--- | :--- | :--- |
-| **Morning Run** | 03:30 UTC | **09:00 AM IST** | +1 Contribution |
-| **Afternoon Run** | 10:30 UTC | **04:00 PM IST** | +1 Contribution |
-| **Night Run** | 16:30 UTC | **10:00 PM IST** | +1 Contribution |
-
-**Total:** **3 automated contributions every single day**, distributed realistically across the morning, afternoon, and night.
-
-> 💡 **Note on GitHub Actions Scheduling:** GitHub Actions scheduled workflows run on shared runners. Runs may start within 5–15 minutes of the target minute depending on global queue demand.
+1. **Unpredictable Windows:** The workflow wakes up across 8 distributed checkpoints each day (`00:17`, `03:17`, `06:17`, `09:17`, `12:17`, `15:17`, `18:17`, `21:17` UTC).
+2. **Variable Daily Contributions:** Evaluates past commits for the current day and applies randomized probability rolls:
+   - Some days receive **1 commit**.
+   - Some days receive **2 commits**.
+   - Some days receive **3 commits**.
+   - Occasionally receives **4 commits**.
+   - **Never 0** (no missed days, automatic evening catchup ensures activity).
+3. **Natural Timestamp Variance:** Includes randomized sleep jitter (3–25 seconds) so commit seconds and minutes never look artificial.
+4. **Varied Commit Messages:** Rotates dynamically between multiple clean repository maintenance messages:
+   - `chore: automated repository maintenance`
+   - `chore: routine maintenance heartbeat sync`
+   - `chore: verify repository health ping`
+   - `chore: update system telemetry status`
+   - `chore: automated repository health check`
+5. **Session Identifiers:** Appends a lightweight randomized session tag (`[session: 8a4f1e]`) to each heartbeat entry.
+6. **Zero Static Credentials:** Runs exclusively using the hourly ephemeral `GITHUB_TOKEN`.
 
 ---
 
