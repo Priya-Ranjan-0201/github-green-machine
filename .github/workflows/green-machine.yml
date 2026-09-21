@@ -1,0 +1,85 @@
+name: GitHub Green Machine
+
+# ─────────────────────────────────────────────────────────────
+# ⚡ GitHub Green Machine — Automated Repository Maintenance
+# ─────────────────────────────────────────────────────────────
+# Performs scheduled repository maintenance by recording a
+# deterministic maintenance heartbeat timestamp.
+# 
+# • Real, forward-moving future maintenance commits.
+# • Zero historical rewriting, zero backdating, zero force pushes.
+# • Built-in GITHUB_TOKEN write authentication.
+# ─────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    # Runs once daily at 04:00 UTC (09:30 AM IST)
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    # Allows manual execution from the GitHub Actions UI for testing
+
+permissions:
+  contents: write
+
+concurrency:
+  group: green-machine-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  maintenance:
+    name: Repository Maintenance & Heartbeat
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 👤 Configure Git Identity
+        run: |
+          # Use repository variables if configured; otherwise fall back to verified account defaults
+          COMMIT_NAME="${{ vars.COMMIT_NAME || 'Priya-Ranjan-0201' }}"
+          COMMIT_EMAIL="${{ vars.COMMIT_EMAIL || '186106336+Priya-Ranjan-0201@users.noreply.github.com' }}"
+
+          echo "Configuring Git identity:"
+          echo "  User:  $COMMIT_NAME"
+          echo "  Email: $COMMIT_EMAIL"
+
+          git config --local user.name "$COMMIT_NAME"
+          git config --local user.email "$COMMIT_EMAIL"
+
+      - name: ⏱️ Record Maintenance Heartbeat
+        run: |
+          mkdir -p .github/activity
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          echo "Automated repository maintenance heartbeat: $TIMESTAMP" >> .github/activity/heartbeat.log
+          
+          # Maintain a lightweight history (keep last 500 lines if file grows too large)
+          if [ -f .github/activity/heartbeat.log ] && [ $(wc -l < .github/activity/heartbeat.log) -gt 1000 ]; then
+            tail -n 500 .github/activity/heartbeat.log > .github/activity/heartbeat.tmp
+            mv .github/activity/heartbeat.tmp .github/activity/heartbeat.log
+          fi
+
+          echo "Recorded heartbeat at: $TIMESTAMP"
+
+      - name: 🚀 Commit and Push Maintenance Update
+        run: |
+          git add .github/activity/heartbeat.log
+
+          # Check if there are staged changes; avoid empty commits
+          if git diff --staged --quiet; then
+            echo "No changes detected. Skipping commit."
+            exit 0
+          fi
+
+          git commit -m "chore: automated repository maintenance"
+
+          # Pull latest changes safely with rebase to prevent race conditions
+          git pull --rebase origin main || true
+
+          # Push to the default branch using the GITHUB_TOKEN
+          git push origin main
